@@ -1,63 +1,61 @@
 import unittest
-from app import app, db
-from app.models.user import User
+from app import create_app, db
+from app.models import User
 from app.repositories.user_repository import UserRepository
 
 class UserRepositoryTest(unittest.TestCase):
-
     def setUp(self):
-        app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-        self.app = app.test_client()
+        # Set up the Flask app for testing
+        self.app = create_app()
+        self.app.config['TESTING'] = True
+        self.app_context = self.app.app_context()
+        self.app_context.push()
         db.create_all()
-        self.user_repository = UserRepository()
 
     def tearDown(self):
+        # Clean up after each test
         db.session.remove()
         db.drop_all()
-
-    def test_create_user(self):
-        user_data = {
-            'name': 'John Doe',
-            'email': 'john@example.com',
-            'password': 'password'
-        }
-        user = self.user_repository.create(user_data)
-        self.assertIsInstance(user, User)
-        self.assertEqual(user.name, 'John Doe')
+        self.app_context.pop()
 
     def test_get_user_by_email(self):
-        user = User(name='John Doe', email='john@example.com', password='password')
+        # Add a sample user to the database
+        user = User(email='test@example.com', password='password')
         db.session.add(user)
         db.session.commit()
 
-        retrieved_user = self.user_repository.get_by_email('john@example.com')
-        self.assertIsInstance(retrieved_user, User)
-        self.assertEqual(retrieved_user.name, 'John Doe')
+        # Call the get_user_by_email method
+        retrieved_user = UserRepository.get_user_by_email('test@example.com')
+
+        # Assert that the retrieved user matches the original user
+        self.assertEqual(retrieved_user.email, 'test@example.com')
+        self.assertEqual(retrieved_user.password, 'password')
+
+    def test_create_user(self):
+        # Create a new user
+        user_data = {'email': 'new@example.com', 'password': 'password'}
+        UserRepository.create_user(user_data)
+
+        # Assert that the user is added to the database
+        users = User.query.all()
+        self.assertEqual(len(users), 1)
+        self.assertEqual(users[0].email, 'new@example.com')
+        self.assertEqual(users[0].password, 'password')
 
     def test_update_user(self):
-        user = User(name='John Doe', email='john@example.com', password='password')
+        # Add a sample user to the database
+        user = User(email='test@example.com', password='password')
         db.session.add(user)
         db.session.commit()
 
-        user_data = {
-            'name': 'John Smith',
-            'email': 'john@example.com',
-            'password': 'new_password'
-        }
-        updated_user = self.user_repository.update(user.id, user_data)
-        self.assertIsInstance(updated_user, User)
-        self.assertEqual(updated_user.name, 'John Smith')
-        self.assertNotEqual(updated_user.password, 'password')
+        # Update the user
+        updated_data = {'email': 'updated@example.com', 'password': 'newpassword'}
+        UserRepository.update_user(user, updated_data)
 
-    def test_delete_user(self):
-        user = User(name='John Doe', email='john@example.com', password='password')
-        db.session.add(user)
-        db.session.commit()
-
-        deleted_user = self.user_repository.delete(user.id)
-        self.assertIsInstance(deleted_user, User)
-        self.assertEqual(deleted_user.name, 'John Doe')
+        # Assert that the user is updated in the database
+        updated_user = User.query.get(user.id)
+        self.assertEqual(updated_user.email, 'updated@example.com')
+        self.assertEqual(updated_user.password, 'newpassword')
 
 if __name__ == '__main__':
     unittest.main()

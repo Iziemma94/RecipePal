@@ -1,61 +1,46 @@
-import json
 import unittest
-from app import app, db
-from app.models.user import User
+import json
+from flask import Flask
+from app.controllers.authentication_controller import authentication_bp
 
-class AuthenticationControllerTest(unittest.TestCase):
 
+class AuthenticationControllerTestCase(unittest.TestCase):
     def setUp(self):
-        app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-        self.app = app.test_client()
-        db.create_all()
+        self.app = Flask(__name__)
+        self.app.register_blueprint(authentication_bp)
 
-    def tearDown(self):
-        db.session.remove()
-        db.drop_all()
+        # Set up test client
+        self.client = self.app.test_client()
 
-    def test_register_user(self):
-        data = {
-            'name': 'John Doe',
-            'email': 'john@example.com',
+    def test_register(self):
+        # Create a test user
+        test_user = {
+            'email': 'test@example.com',
             'password': 'password123'
         }
-        response = self.app.post('/api/register', data=json.dumps(data),
-                                 headers={'Content-Type': 'application/json'})
+
+        # Send a POST request to the register endpoint
+        response = self.client.post('/register', json=test_user)
+        data = json.loads(response.data.decode())
+
+        # Check the response status code and message
         self.assertEqual(response.status_code, 201)
-        self.assertIn(b'Successfully registered', response.data)
+        self.assertEqual(data['message'], 'User registered successfully')
 
-    def test_login_user(self):
-        user = User(name='John Doe', email='john@example.com', password='password123')
-        db.session.add(user)
-        db.session.commit()
-
-        data = {
-            'email': 'john@example.com',
+    def test_login(self):
+        # Create a test user
+        test_user = {
+            'email': 'test@example.com',
             'password': 'password123'
         }
-        response = self.app.post('/api/login', data=json.dumps(data),
-                                 headers={'Content-Type': 'application/json'})
+
+        # Send a POST request to the login endpoint
+        response = self.client.post('/login', json=test_user)
+        data = json.loads(response.data.decode())
+
+        # Check the response status code and access token
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b'Login successful', response.data)
-
-    def test_logout_user(self):
-        user = User(name='John Doe', email='john@example.com', password='password123')
-        db.session.add(user)
-        db.session.commit()
-
-        # Log in the user first
-        login_data = {
-            'email': 'john@example.com',
-            'password': 'password123'
-        }
-        self.app.post('/api/login', data=json.dumps(login_data),
-                      headers={'Content-Type': 'application/json'})
-
-        response = self.app.get('/api/logout')
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b'Logout successful', response.data)
+        self.assertTrue('access_token' in data)
 
 if __name__ == '__main__':
     unittest.main()

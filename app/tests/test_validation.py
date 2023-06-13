@@ -1,22 +1,42 @@
 import unittest
-from app.utils.validation import validate_recipe_data
+from wtforms import StringField, PasswordField
+from wtforms.validators import DataRequired, Email, Length, EqualTo
+from your_module import RegistrationForm, LoginForm, RecipeForm, ProfileUpdateForm
 
-class ValidationTest(unittest.TestCase):
+class FormTest(unittest.TestCase):
+    def test_registration_form(self):
+        form = RegistrationForm()
+        self.assertIsInstance(form.name, StringField)
+        self.assertIsInstance(form.email, StringField)
+        self.assertIsInstance(form.password, PasswordField)
+        self.assertIsInstance(form.confirm_password, PasswordField)
+        self.assertEqual(form.name.validators, [DataRequired()])
+        self.assertEqual(form.email.validators, [DataRequired(), Email()])
+        self.assertEqual(form.password.validators, [DataRequired(), Length(min=6)])
+        self.assertEqual(form.confirm_password.validators, [EqualTo('password', message='Passwords must match')])
 
-    def test_validate_recipe_data(self):
-        valid_data = {
-            'name': 'Chocolate Cake',
-            'ingredients': 'Flour, sugar, cocoa powder, eggs',
-            'directions': 'Mix all ingredients, bake at 180°C for 30 minutes'
-        }
-        self.assertTrue(validate_recipe_data(valid_data))
+    def test_login_form(self):
+        form = LoginForm()
+        self.assertIsInstance(form.email, StringField)
+        self.assertIsInstance(form.password, PasswordField)
+        self.assertEqual(form.email.validators, [DataRequired(), Email()])
+        self.assertEqual(form.password.validators, [DataRequired()])
 
-        invalid_data = {
-            'name': '',
-            'ingredients': 'Flour, sugar, cocoa powder, eggs',
-            'directions': 'Mix all ingredients, bake at 180°C for 30 minutes'
-        }
-        self.assertFalse(validate_recipe_data(invalid_data))
+    def test_recipe_form(self):
+        form = RecipeForm()
+        self.assertIsInstance(form.name, StringField)
+        self.assertIsInstance(form.ingredients, StringField)
+        self.assertIsInstance(form.directions, StringField)
+        self.assertEqual(form.name.validators, [DataRequired()])
+        self.assertEqual(form.ingredients.validators, [DataRequired()])
+        self.assertEqual(form.directions.validators, [DataRequired()])
+
+    def test_profile_update_form(self):
+        form = ProfileUpdateForm()
+        self.assertIsInstance(form.name, StringField)
+        self.assertIsInstance(form.email, StringField)
+        self.assertEqual(form.name.validators, [DataRequired()])
+        self.assertEqual(form.email.validators, [DataRequired(), Email()])
 
 if __name__ == '__main__':
     unittest.main()

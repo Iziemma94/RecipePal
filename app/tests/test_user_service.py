@@ -1,51 +1,87 @@
 import unittest
-from app import app, db
-from app.models.user import User
+from unittest.mock import patch, MagicMock
+from flask_jwt_extended import create_access_token, create_refresh_token
 from app.services.user_service import UserService
+from app.repositories.user_repository import UserRepository
 
 class UserServiceTest(unittest.TestCase):
-
     def setUp(self):
-        app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-        self.app = app.test_client()
-        db.create_all()
-        self.user_service = UserService()
-
-    def tearDown(self):
-        db.session.remove()
-        db.drop_all()
-
-    def test_get_user(self):
-        user = User(name='John Doe', email='john@example.com', password='password')
-        db.session.add(user)
-        db.session.commit()
-
-        retrieved_user = self.user_service.get_user(user.id)
-        self.assertIsInstance(retrieved_user, User)
-        self.assertEqual(retrieved_user.email, 'john@example.com')
-
-    def test_update_user(self):
-        user = User(name='John Doe', email='john@example.com', password='password')
-        db.session.add(user)
-        db.session.commit()
-
-        user_data = {
-            'name': 'John Smith',
-            'email': 'john.smith@example.com'
+        self.user_data = {
+            'email': 'test@example.com',
+            'password': 'password123'
         }
-        updated_user = self.user_service.update_user(user.id, user_data)
-        self.assertIsInstance(updated_user, User)
-        self.assertEqual(updated_user.name, 'John Smith')
 
-    def test_delete_user(self):
-        user = User(name='John Doe', email='john@example.com', password='password')
-        db.session.add(user)
-        db.session.commit()
+    def test_register_user(self):
+        with patch.object(UserRepository, 'get_user_by_email', return_value=None):
+            with patch.object(UserRepository, 'create_user') as create_user_mock:
+                result, message = UserService.register_user(self.user_data['email'], self.user_data['password'])
+                create_user_mock.assert_called_once_with(self.user_data)
+                self.assertTrue(result)
+                self.assertEqual(message, "User registered successfully")
 
-        deleted_user = self.user_service.delete_user(user.id)
-        self.assertIsInstance(deleted_user, User)
-        self.assertEqual(deleted_user.email, 'john@example.com')
+    def test_register_user_existing_user(self):
+        with patch.object(UserRepository, 'get_user_by_email', return_value=MagicMock()):
+            result, message = UserService.register_user(self.user_data['email'], self.user_data['password'])
+            self.assertFalse(result)
+            self.assertEqual(message, "User already exists")
+
+    def test_login_user(self):
+        mock_user = MagicMock()
+        mock_user.email = self.user_data['email']
+        mock_user.password = bcrypt.hashpw(self.user_data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        with patch.object(UserRepository, 'get_user_by_email', return_value=mock_user):
+            with patch('flask_jwt_extended.create_access_token') as create_access_token_mock:
+                with patch('flask_jwt_extended.create_refresh_token') as create_refresh_token_mock:
+                    result, access_token, refresh_token = UserService.login_user(self.user_data['email'], self.user_data['password'])
+                    create_access_token_mock.assert_called_once_with(identity=self.user_data['email'])
+                    create_refresh_token_mock.assert_called_once_with(identity=self.user_data['email'])
+                    self.assertTrue(result)
+                    self.assertEqual(access_token, create_access_token_mock.return_value)
+                    self.assertEqual(refresh_token, create_refresh_token_mock.return_value)
+
+    def test_login_user_invalid_credentials(self):
+        with patch.object(UserRepository, 'get_user_by_email', return_value=None):
+            result, access_token, refresh_token = UserService.login_user(self.user_data['email'], self.user_data['password'])
+            self.assertFalse(result)
+            self.assertEqual(access_token, None)
+            self.assertEqual(refresh_token, None)
+
+    def test_get_user_profile(self):
+        mock_user = MagicMock()
+        mock_user.id = 1
+        mock_user.email = self.user_data['email']
+        mock_user.created_at = '2023-01-01 00:00:00'
+        mock_user.updated_at = '2023-01-01 00:00:00'
+        with patch.object(UserRepository, 'get_user_by_email', return_value=mock_user):
+            profile = UserService.get_user_profile(self.user_data['email'])
+            self.assertEqual(profile, {
+                'id': mock_user.id,
+                'email': mock_user.email,
+                'created_at': mock_user.created_at,
+                'updated_at': mock_user.updated_at
+            })
+
+    def test_get_user_profile_user_not_found(self):
+        with patch.object(UserRepository, 'get_user_by_email', return_value=None):
+            profile = UserService.get_user_profile(self.user_data['email'])
+            self.assertEqual(profile, None)
+
+    def test_update_user_profile(self):
+        mock_user = MagicMock()
+        with patch.object(UserRepository, 'get_user_by_email', return_value=mock_user):
+            with patch.object(UserRepository, 'update_user') as update_user_mock:
+                updated_profile = {'email': 'updated@example.com'}
+                result, message = UserService.update_user_profile(self.user_data['email'], updated_profile)
+                update_user_mock.assert_called_once_with(mock_user, updated_profile)
+                self.assertTrue(result)
+                self.assertEqual(message, "User profile updated successfully")
+
+    def test_update_user_profile_user_not_found(self):
+        with patch.object(UserRepository, 'get_user_by_email', return_value=None):
+            updated_profile = {'email': 'updated@example.com'}
+            result, message = UserService.update_user_profile(self.user_data['email'], updated_profile)
+            self.assertFalse(result)
+            self.assertEqual(message, "User not found")
 
 if __name__ == '__main__':
     unittest.main()

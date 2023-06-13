@@ -1,24 +1,30 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from config import config
+from flask_cors import CORS
+import secrets
 
-# Create Flask application instance
+# Create the Flask application
 app = Flask(__name__)
 
-# Load configuration based on environment
-app.config.from_object(config['development'])  # Replace 'development' with your desired environment
+# Generate a random secret key
+secret_key = secrets.token_hex(16)
 
-# Create SQLAlchemy database instance
+# Set the secret key in the app configuration
+app.config['SECRET_KEY'] = secret_key
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///recipepal.db'
 db = SQLAlchemy(app)
+CORS(app)
 
-# Import and register blueprints/routes
-from app.routes import auth_routes, recipe_routes, user_routes
+# Import your routes and controllers here
+from controllers.authentication_controller import auth_routes
+from controllers.recipe_controller import recipe_routes
+from controllers.user_controller import user_routes
 
+# Register the routes
 app.register_blueprint(auth_routes)
 app.register_blueprint(recipe_routes)
 app.register_blueprint(user_routes)
 
-# Run the application
+# Run the app
 if __name__ == '__main__':
-    db.create_all()  # Create database tables (if they don't exist) before running the app
-    app.run(debug=True)
+    app.run()
